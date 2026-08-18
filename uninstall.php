@@ -31,6 +31,8 @@ if ( ! function_exists( 'get_editable_roles' ) ) {
 Kasa_Roles::uninstall();
 
 delete_option( 'kasa_academy_learner_migration_version' );
+delete_option( 'kasa_academy_matrix_file_version' );
+delete_option( 'kasa_academy_advanced_level_corrected' );
 
 /*
  * Loginly's default_role is not reset here.

@@ -74,11 +74,15 @@ final class Kasa_Academy {
 		require_once KASA_ACADEMY_PATH . 'includes/roles/capabilities.php';
 		require_once KASA_ACADEMY_PATH . 'includes/roles/class-kasa-roles.php';
 		require_once KASA_ACADEMY_PATH . 'includes/roles/class-kasa-role-migration.php';
+		require_once KASA_ACADEMY_PATH . 'includes/class-kasa-organisation.php';
 		require_once KASA_ACADEMY_PATH . 'includes/scoping/class-kasa-scope.php';
 		require_once KASA_ACADEMY_PATH . 'includes/class-kasa-learndash-compat.php';
 		require_once KASA_ACADEMY_PATH . 'includes/enforcement/class-kasa-guards.php';
 		require_once KASA_ACADEMY_PATH . 'includes/enforcement/class-kasa-meta-caps.php';
 		require_once KASA_ACADEMY_PATH . 'includes/admin/class-kasa-organisation-admin.php';
+		require_once KASA_ACADEMY_PATH . 'includes/admin/class-kasa-permissions-matrix.php';
+		require_once KASA_ACADEMY_PATH . 'includes/admin/class-kasa-admin-menu.php';
+		require_once KASA_ACADEMY_PATH . 'includes/export/class-kasa-export.php';
 	}
 
 	/**
@@ -89,12 +93,15 @@ final class Kasa_Academy {
 	private function init_hooks() {
 		add_action( 'init', array( $this, 'load_textdomain' ) );
 
+		Kasa_Organisation::init();
 		Kasa_LearnDash_Compat::init();
 		Kasa_Meta_Caps::init();
+		Kasa_Export::init();
 		Kasa_Guards::init();
 
 		if ( is_admin() ) {
 			Kasa_Organisation_Admin::init();
+			Kasa_Admin_Menu::init();
 		}
 
 		// Roles are reconciled in the admin only. A visitor never needs this

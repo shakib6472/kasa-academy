@@ -27,6 +27,11 @@ class Kasa_Guards {
 	public static function init() {
 		add_action( 'template_redirect', array( __CLASS__, 'guard_learner_work' ), 1 );
 		add_action( 'admin_init', array( __CLASS__, 'guard_admin_access' ), 1 );
+		add_action( 'admin_init', array( __CLASS__, 'guard_group_id_requests' ), 2 );
+		add_action( 'admin_init', array( __CLASS__, 'guard_quiz_statistics_screen' ), 3 );
+
+		// Before LearnDash's own handler, so a refused request never reaches it.
+		add_action( 'wp_ajax_wp_pro_quiz_admin_ajax', array( __CLASS__, 'guard_quiz_statistics_ajax' ), 1 );
 		add_filter( 'show_admin_bar', array( __CLASS__, 'filter_admin_bar' ) );
 		add_filter( 'learndash_quiz_essay_get_download_url', array( __CLASS__, 'filter_essay_download_url' ), 10, 2 );
 		add_filter( 'register_post_type_args', array( __CLASS__, 'restrict_group_creation' ), 20, 2 );
@@ -290,6 +295,284 @@ class Kasa_Guards {
 	}
 
 	/**
+	 * Refuse any admin request naming a group the user may not see.
+	 *
+	 * Narrowing the group list query is not enough, because the screens that
+	 * show one group take its ID from the request instead of from a list.
+	 * LearnDash's Group Administration page is the clearest case: with
+	 * admin.php?page=group_admin_page&group_id=N, changing N walks straight
+	 * into another group's roster, names and email addresses included. The
+	 * group never appears in the user's own list, so the interface looks
+	 * correctly locked; only editing the URL reveals it, which is why the
+	 * brief insists on testing that way rather than by clicking around.
+	 *
+	 * Written against the group_id parameter itself rather than against that
+	 * one screen, so a different LearnDash screen, or a later Kasa module,
+	 * taking the same parameter is covered without anyone remembering to come
+	 * back and add it.
+	 *
+	 * @return void
+	 */
+	public static function guard_group_id_requests() {
+		if ( self::admin_request_is_exempt() ) {
+			return;
+		}
+
+		$user_id = get_current_user_id();
+
+		if ( ! $user_id || Kasa_Scope::is_unrestricted( $user_id ) ) {
+			return;
+		}
+
+		// Roles with no group access at all are already turned away by
+		// guard_admin_access().
+		if ( ! user_can( $user_id, 'kasa_view_group_learners' ) ) {
+			return;
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Reading an identifier to decide access, not acting on a submission.
+		$raw = null;
+
+		if ( isset( $_GET['group_id'] ) ) {
+			$raw = wp_unslash( $_GET['group_id'] );
+		} elseif ( isset( $_POST['group_id'] ) ) {
+			$raw = wp_unslash( $_POST['group_id'] );
+		}
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		if ( null === $raw || is_array( $raw ) ) {
+			return;
+		}
+
+		$group_id = absint( $raw );
+
+		// Zero and non-numeric values are not a group, and screens use them to
+		// mean "no group chosen".
+		if ( ! $group_id ) {
+			return;
+		}
+
+		if ( kasa_user_can_see_group( $group_id, $user_id ) ) {
+			return;
+		}
+
+		wp_die(
+			esc_html__( 'You do not have access to that group.', 'kasa-academy' ),
+			esc_html__( 'Access denied', 'kasa-academy' ),
+			array( 'response' => 403 )
+		);
+	}
+
+	/**
+	 * The learner who made a quiz attempt.
+	 *
+	 * A quiz attempt is identified everywhere by its statistic_ref_id, which
+	 * carries no group and no course. This is the only thing that turns that
+	 * number back into a person, and therefore the only thing that lets the
+	 * scope rules apply to it.
+	 *
+	 * @param int $ref_id LearnDash statistic_ref_id.
+	 * @return int Learner user ID, or 0 when the attempt does not exist.
+	 */
+	private static function learner_for_quiz_attempt( $ref_id ) {
+		global $wpdb;
+
+		$ref_id = absint( $ref_id );
+
+		if ( ! $ref_id ) {
+			return 0;
+		}
+
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT user_id FROM {$wpdb->prefix}learndash_pro_quiz_statistic_ref WHERE statistic_ref_id = %d",
+				$ref_id
+			)
+		);
+	}
+
+	/**
+	 * Whether the current user is one this guard has to narrow.
+	 *
+	 * @return bool
+	 */
+	private static function is_scoped_reviewer() {
+		$user_id = get_current_user_id();
+
+		if ( ! $user_id || Kasa_Scope::is_unrestricted( $user_id ) ) {
+			return false;
+		}
+
+		return user_can( $user_id, 'wpProQuiz_show' );
+	}
+
+	/**
+	 * Keep the Advanced Quiz screen to reviewing a facilitator's own learners.
+	 *
+	 * The matrix gives a facilitator "See a learner's quiz answers, own
+	 * groups". LearnDash keeps those answers on its Advanced Quiz screen, which
+	 * it registers with the wpProQuiz_show capability, so reaching them at all
+	 * means holding that capability. It opens far more than the answers: the
+	 * same page routes to the quiz builder, the question editor, import and
+	 * export, and the global quiz settings, none of which a facilitator may
+	 * touch under "Create or edit courses, lessons, quizzes — No".
+	 *
+	 * So the capability is granted and the page is narrowed here to the one
+	 * module it was granted for. Everything else on it is refused.
+	 *
+	 * @return void
+	 */
+	public static function guard_quiz_statistics_screen() {
+		if ( self::admin_request_is_exempt() ) {
+			return;
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Reading the requested screen to decide access.
+		$page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
+
+		// Compared without case, and deliberately not through sanitize_key():
+		// that lowercases its input, so ldAdvQuiz becomes ldadvquiz and the
+		// comparison never matches. The guard then does nothing at all, while
+		// looking exactly like a guard.
+		if ( 0 !== strcasecmp( 'ldAdvQuiz', $page ) ) {
+			return;
+		}
+
+		if ( ! self::is_scoped_reviewer() ) {
+			return;
+		}
+
+		$module = isset( $_GET['module'] ) ? sanitize_text_field( wp_unslash( $_GET['module'] ) ) : 'overallView';
+
+		if ( 'statistics' !== $module ) {
+			wp_die(
+				esc_html__( 'That part of the quiz screen is for administrators. You can review your own learners\' quiz answers from your group.', 'kasa-academy' ),
+				esc_html__( 'Access denied', 'kasa-academy' ),
+				array( 'response' => 403 )
+			);
+		}
+
+		// When one attempt is named, it has to belong to one of their learners.
+		$ref_id = 0;
+
+		foreach ( array( 'ref_id', 'refId', 'statistic_ref_id' ) as $key ) {
+			if ( isset( $_GET[ $key ] ) ) {
+				$ref_id = absint( wp_unslash( $_GET[ $key ] ) );
+				break;
+			}
+		}
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		if ( ! $ref_id ) {
+			return;
+		}
+
+		self::deny_unless_own_learner( self::learner_for_quiz_attempt( $ref_id ) );
+	}
+
+	/**
+	 * The same rule for the requests that actually carry the answers back.
+	 *
+	 * The statistics screen is a shell. The attempt, its score and every
+	 * individual answer arrive over admin-ajax, addressed by refId and userId,
+	 * so guarding only the page would leave the data one request away. These
+	 * are the calls a tampering user would edit.
+	 *
+	 * @return void
+	 */
+	public static function guard_quiz_statistics_ajax() {
+		if ( ! self::is_scoped_reviewer() ) {
+			return;
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- LearnDash verifies its own nonce; this only reads the payload to decide access.
+		$func = isset( $_POST['func'] ) ? sanitize_text_field( wp_unslash( $_POST['func'] ) ) : '';
+
+		if ( 0 !== strpos( $func, 'statistic' ) ) {
+			return;
+		}
+
+		// Resetting somebody's attempt is destroying a record of a child's
+		// work. Administrators only, whoever it belongs to.
+		if ( in_array( $func, array( 'statisticReset', 'statisticResetNew' ), true ) ) {
+			self::deny_ajax();
+		}
+
+		$data = isset( $_POST['data'] ) && is_array( $_POST['data'] ) ? wp_unslash( $_POST['data'] ) : array();
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		$learners = array();
+
+		if ( ! empty( $data['refId'] ) ) {
+			$learner = self::learner_for_quiz_attempt( $data['refId'] );
+
+			// An attempt that cannot be resolved to a person cannot be checked
+			// against the scope rules, so it is refused rather than guessed at.
+			if ( ! $learner ) {
+				self::deny_ajax();
+			}
+
+			$learners[] = $learner;
+		}
+
+		if ( ! empty( $data['userId'] ) ) {
+			$learners[] = absint( $data['userId'] );
+		}
+
+		/*
+		 * A statistics call naming nobody asks for the whole quiz's attempts,
+		 * across every group on the platform. There is no way to narrow that
+		 * to one facilitator's learners without rewriting LearnDash's own
+		 * listing, so it is refused. Facilitators reach an attempt through
+		 * their group, where the learner is already known.
+		 */
+		if ( empty( $learners ) ) {
+			self::deny_ajax();
+		}
+
+		foreach ( $learners as $learner ) {
+			self::deny_unless_own_learner( $learner, true );
+		}
+	}
+
+	/**
+	 * Refuse unless the learner is inside the current user's scope.
+	 *
+	 * @param int  $learner_id Learner user ID.
+	 * @param bool $is_ajax    Whether to answer as AJAX.
+	 * @return void
+	 */
+	private static function deny_unless_own_learner( $learner_id, $is_ajax = false ) {
+		$learner_id = absint( $learner_id );
+
+		if ( $learner_id && kasa_user_can_see_learner( $learner_id, get_current_user_id() ) ) {
+			return;
+		}
+
+		if ( $is_ajax ) {
+			self::deny_ajax();
+		}
+
+		wp_die(
+			esc_html__( 'That quiz attempt belongs to a learner outside your groups.', 'kasa-academy' ),
+			esc_html__( 'Access denied', 'kasa-academy' ),
+			array( 'response' => 403 )
+		);
+	}
+
+	/**
+	 * End an AJAX request without giving anything away.
+	 *
+	 * @return void
+	 */
+	private static function deny_ajax() {
+		wp_send_json_error(
+			array( 'message' => __( 'That is outside your groups.', 'kasa-academy' ) ),
+			403
+		);
+	}
+
+	/**
 	 * Requests that must keep working even for a learner.
 	 *
 	 * Loginly and LearnDash both post to these from the front end. Blocking
@@ -315,12 +598,37 @@ class Kasa_Guards {
 	/**
 	 * Whether a user has any business in wp-admin.
 	 *
+	 * Facilitators and partners are allowed in because the capability matrix
+	 * says so: "Access wp-admin — Limited, own group screens only" for a
+	 * facilitator, "Limited, own cohort screens only" for a partner. Limited is
+	 * what they get; every screen outside their own groups is refused, and the
+	 * verification suite checks each one.
+	 *
+	 * There is a reasonable argument for letting neither of them near wp-admin
+	 * at all once they have a front end panel of their own, and this is the one
+	 * place that would change. It is not this milestone's call to make, because
+	 * the panel does not exist yet and shutting the door today would leave a
+	 * facilitator unable to add a learner to their own group, which the matrix
+	 * requires. The filter below exists so the switch is a line of
+	 * configuration rather than an edit to this file.
+	 *
 	 * @param int $user_id User ID.
 	 * @return bool
 	 */
 	public static function may_use_admin( $user_id ) {
-		return Kasa_Scope::is_unrestricted( $user_id )
+		$allowed = Kasa_Scope::is_unrestricted( $user_id )
 			|| user_can( $user_id, 'kasa_view_group_learners' );
+
+		/**
+		 * Filters whether a user may reach wp-admin.
+		 *
+		 * Return false for facilitators and partners once their front end
+		 * panel replaces the admin screens they use today.
+		 *
+		 * @param bool $allowed Whether wp-admin is permitted.
+		 * @param int  $user_id User being checked.
+		 */
+		return (bool) apply_filters( 'kasa_may_use_admin', $allowed, $user_id );
 	}
 
 	/**

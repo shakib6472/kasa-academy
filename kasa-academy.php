@@ -34,7 +34,7 @@ define( 'KASA_ACADEMY_VERSION', '1.0.0' );
  * Increment this whenever the capability map in includes/roles/capabilities.php
  * changes, otherwise the change will never reach an existing install.
  */
-define( 'KASA_ROLES_VERSION', '1.0.0' );
+define( 'KASA_ROLES_VERSION', '1.1.0' );
 
 define( 'KASA_ACADEMY_FILE', __FILE__ );
 define( 'KASA_ACADEMY_PATH', plugin_dir_path( __FILE__ ) );

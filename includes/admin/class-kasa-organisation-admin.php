@@ -10,13 +10,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Lets an administrator set the organisation on a partner and on a group.
+ * Picks an organisation for a partner, and for a group.
  *
- * The organisation link is what scopes a partner to its own cohorts, and until
- * this existed the only way to set it was in the database. Both ends have to
- * carry the same value or the partner sees nothing, so both fields offer the
- * organisations already in use rather than relying on anyone typing the same
- * string twice.
+ * Both ends are a select drawn from the same list of organisations, because
+ * both ends have to agree exactly. Anything typed rather than chosen is a
+ * partner who silently sees nothing, which looks like a broken account rather
+ * than a mistyped field.
+ *
+ * Organisations themselves are created on their own screen, which appears in
+ * the LearnDash menu as Organisations. Both fields link to it, so nobody has
+ * to go looking for where the list comes from.
  */
 class Kasa_Organisation_Admin {
 
@@ -33,12 +36,15 @@ class Kasa_Organisation_Admin {
 
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_group_meta_box' ) );
 		add_action( 'save_post', array( __CLASS__, 'save_group_field' ), 10, 2 );
+
+		add_filter( 'manage_users_columns', array( __CLASS__, 'add_users_column' ) );
+		add_filter( 'manage_users_custom_column', array( __CLASS__, 'render_users_column' ), 10, 3 );
 	}
 
 	/**
 	 * Only an administrator sets these.
 	 *
-	 * A partner must never be able to retype their own organisation, since
+	 * A partner must never be able to change their own organisation, since
 	 * that is the whole of what limits them to their own children.
 	 *
 	 * @return bool
@@ -48,58 +54,65 @@ class Kasa_Organisation_Admin {
 	}
 
 	/**
-	 * Organisations already in use, for the suggestion list.
+	 * Where organisations are created.
 	 *
-	 * @return array
+	 * @return string
 	 */
-	private static function known_organisations() {
-		global $wpdb;
-
-		$key = Kasa_Scope::ORGANISATION_META;
-
-		$from_users = $wpdb->get_col(
-			$wpdb->prepare( "SELECT DISTINCT meta_value FROM {$wpdb->usermeta} WHERE meta_key = %s AND meta_value != ''", $key )
-		);
-
-		$from_groups = $wpdb->get_col(
-			$wpdb->prepare( "SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value != ''", $key )
-		);
-
-		$all = array_merge( (array) $from_users, (array) $from_groups );
-		$all = array_filter( array_map( 'trim', $all ) );
-		$all = array_unique( $all );
-
-		sort( $all );
-
-		return $all;
+	private static function manage_url() {
+		return admin_url( Kasa_Organisation::admin_url() );
 	}
 
 	/**
-	 * The shared suggestion list markup.
+	 * The select, shared by both screens.
 	 *
-	 * @param string $id Datalist element ID.
+	 * @param string $name     Field name.
+	 * @param int    $selected Currently selected term ID.
+	 * @param bool   $enabled  Whether the field may be changed.
 	 * @return void
 	 */
-	private static function render_datalist( $id ) {
-		$known = self::known_organisations();
+	private static function render_select( $name, $selected, $enabled ) {
+		$organisations = Kasa_Organisation::all();
 
-		if ( empty( $known ) ) {
+		if ( empty( $organisations ) ) {
+			printf(
+				'<p><em>%s</em> <a href="%s">%s</a></p>',
+				esc_html__( 'No organisations exist yet.', 'kasa-academy' ),
+				esc_url( self::manage_url() ),
+				esc_html__( 'Add the first one', 'kasa-academy' )
+			);
+
 			return;
 		}
 
-		echo '<datalist id="' . esc_attr( $id ) . '">';
-		foreach ( $known as $organisation ) {
-			echo '<option value="' . esc_attr( $organisation ) . '"></option>';
+		printf(
+			'<select name="%s" id="%s" %s>',
+			esc_attr( $name ),
+			esc_attr( $name ),
+			$enabled ? '' : 'disabled'
+		);
+
+		printf(
+			'<option value="0">%s</option>',
+			esc_html__( '— none —', 'kasa-academy' )
+		);
+
+		foreach ( $organisations as $organisation ) {
+			printf(
+				'<option value="%d" %s>%s</option>',
+				absint( $organisation->term_id ),
+				selected( absint( $selected ), absint( $organisation->term_id ), false ),
+				esc_html( $organisation->name )
+			);
 		}
-		echo '</datalist>';
+
+		echo '</select>';
 	}
 
 	/**
-	 * A small amount of Kasa colour, so these fields read as ours.
+	 * A little Kasa colour, so these read as ours.
 	 *
-	 * Values come from the Elementor global kit, which is the site chrome
-	 * palette. Deliberately not the --kasa-* course variables, which every
-	 * course overrides for itself.
+	 * Taken from the Elementor global kit, which is the site chrome palette,
+	 * and deliberately not the per-course --kasa-* variables.
 	 *
 	 * @return void
 	 */
@@ -113,16 +126,9 @@ class Kasa_Organisation_Admin {
 		$done = true;
 		?>
 		<style>
-			.kasa-org-field {
-				border-left: 3px solid #9CAF88;
-				padding-left: 12px;
-			}
-			.kasa-org-field .description code {
-				background: #F2F8F4;
-				color: #203F2F;
-			}
+			.kasa-org-field { border-left: 3px solid #9CAF88; padding-left: 12px; }
 			.kasa-org-warning {
-				color: #8a6100;
+				color: #6b4c00;
 				background: #FDF6E7;
 				border-left: 3px solid #E8A93C;
 				padding: 8px 12px;
@@ -143,7 +149,7 @@ class Kasa_Organisation_Admin {
 			return;
 		}
 
-		$value      = get_user_meta( $user->ID, Kasa_Scope::ORGANISATION_META, true );
+		$selected   = Kasa_Scope::organisation_id( $user->ID );
 		$is_partner = user_can( $user->ID, 'kasa_view_org_cohorts' );
 
 		self::render_styles();
@@ -151,25 +157,17 @@ class Kasa_Organisation_Admin {
 		<h2><?php esc_html_e( 'Kasa Academy', 'kasa-academy' ); ?></h2>
 		<table class="form-table" role="presentation">
 			<tr class="kasa-org-field">
-				<th>
-					<label for="kasa_organisation_id"><?php esc_html_e( 'Organisation', 'kasa-academy' ); ?></label>
-				</th>
+				<th><label for="kasa_organisation_id"><?php esc_html_e( 'Organisation', 'kasa-academy' ); ?></label></th>
 				<td>
 					<?php wp_nonce_field( 'kasa_save_organisation', 'kasa_organisation_nonce' ); ?>
-					<input type="text"
-						name="kasa_organisation_id"
-						id="kasa_organisation_id"
-						list="kasa-organisation-list"
-						value="<?php echo esc_attr( $value ); ?>"
-						class="regular-text"
-						autocomplete="off" />
-					<?php self::render_datalist( 'kasa-organisation-list' ); ?>
+					<?php self::render_select( 'kasa_organisation_id', $selected, true ); ?>
 					<p class="description">
-						<?php esc_html_e( 'Which organisation this user belongs to. An Implementation Partner sees only the groups carrying the same value, so it must match the group exactly.', 'kasa-academy' ); ?>
+						<?php esc_html_e( 'An Implementation Partner sees only the groups belonging to this organisation, and no others.', 'kasa-academy' ); ?>
+						<a href="<?php echo esc_url( self::manage_url() ); ?>"><?php esc_html_e( 'Manage organisations', 'kasa-academy' ); ?></a>
 					</p>
-					<?php if ( $is_partner && '' === trim( (string) $value ) ) : ?>
+					<?php if ( $is_partner && ! $selected ) : ?>
 						<p class="kasa-org-warning">
-							<?php esc_html_e( 'This partner has no organisation set, so they can currently see no groups and no learners at all. That is the safe default rather than an error, but it does mean their account does nothing until this is filled in.', 'kasa-academy' ); ?>
+							<?php esc_html_e( 'This partner has no organisation, so they can currently see no groups and no learners at all. That is the safe default rather than an error, but their account does nothing until an organisation is chosen.', 'kasa-academy' ); ?>
 						</p>
 					<?php endif; ?>
 				</td>
@@ -185,11 +183,7 @@ class Kasa_Organisation_Admin {
 	 * @return void
 	 */
 	public static function save_user_field( $user_id ) {
-		if ( ! self::current_user_may_edit() ) {
-			return;
-		}
-
-		if ( ! isset( $_POST['kasa_organisation_nonce'] ) ) {
+		if ( ! self::current_user_may_edit() || ! isset( $_POST['kasa_organisation_nonce'] ) ) {
 			return;
 		}
 
@@ -199,16 +193,15 @@ class Kasa_Organisation_Admin {
 			return;
 		}
 
-		$value = isset( $_POST['kasa_organisation_id'] )
-			? sanitize_text_field( wp_unslash( $_POST['kasa_organisation_id'] ) )
-			: '';
+		$term_id = isset( $_POST['kasa_organisation_id'] ) ? absint( wp_unslash( $_POST['kasa_organisation_id'] ) ) : 0;
 
-		$value = trim( $value );
-
-		if ( '' === $value ) {
+		// Never store an organisation that does not exist. Scoping would treat
+		// it as unset anyway, but a stale value in the database invites
+		// somebody to trust it later.
+		if ( ! $term_id || ! Kasa_Organisation::exists( $term_id ) ) {
 			delete_user_meta( $user_id, Kasa_Scope::ORGANISATION_META );
 		} else {
-			update_user_meta( $user_id, Kasa_Scope::ORGANISATION_META, $value );
+			update_user_meta( $user_id, Kasa_Scope::ORGANISATION_META, $term_id );
 		}
 
 		Kasa_Scope::flush_cache( $user_id );
@@ -216,6 +209,10 @@ class Kasa_Organisation_Admin {
 
 	/**
 	 * Add the organisation box to a group.
+	 *
+	 * The taxonomy's own box is switched off in Kasa_Organisation, so this is
+	 * the only one. A group belongs to one organisation, and the default box
+	 * would allow several.
 	 *
 	 * @return void
 	 */
@@ -241,25 +238,14 @@ class Kasa_Organisation_Admin {
 	 * @return void
 	 */
 	public static function render_group_field( $post ) {
-		$value    = get_post_meta( $post->ID, Kasa_Scope::ORGANISATION_META, true );
-		$editable = self::current_user_may_edit();
-
 		self::render_styles();
 
 		wp_nonce_field( 'kasa_save_group_organisation', 'kasa_group_organisation_nonce' );
 		?>
 		<div class="kasa-org-field">
-			<input type="text"
-				name="kasa_organisation_id"
-				id="kasa_group_organisation_id"
-				list="kasa-group-organisation-list"
-				value="<?php echo esc_attr( $value ); ?>"
-				style="width:100%"
-				autocomplete="off"
-				<?php disabled( ! $editable ); ?> />
-			<?php self::render_datalist( 'kasa-group-organisation-list' ); ?>
+			<?php self::render_select( 'kasa_organisation_id', Kasa_Organisation::for_group( $post->ID ), self::current_user_may_edit() ); ?>
 			<p class="description">
-				<?php esc_html_e( 'Leave empty unless this group belongs to a partner organisation. An empty value means no partner can reach this group, which is the safe default.', 'kasa-academy' ); ?>
+				<?php esc_html_e( 'Leave this as none unless the group belongs to a partner organisation. None means no partner can reach the group, which is the safe default.', 'kasa-academy' ); ?>
 			</p>
 		</div>
 		<?php
@@ -285,11 +271,7 @@ class Kasa_Organisation_Admin {
 			return;
 		}
 
-		if ( ! self::current_user_may_edit() ) {
-			return;
-		}
-
-		if ( ! isset( $_POST['kasa_group_organisation_nonce'] ) ) {
+		if ( ! self::current_user_may_edit() || ! isset( $_POST['kasa_group_organisation_nonce'] ) ) {
 			return;
 		}
 
@@ -299,16 +281,54 @@ class Kasa_Organisation_Admin {
 			return;
 		}
 
-		$value = isset( $_POST['kasa_organisation_id'] )
-			? trim( sanitize_text_field( wp_unslash( $_POST['kasa_organisation_id'] ) ) )
-			: '';
+		$term_id = isset( $_POST['kasa_organisation_id'] ) ? absint( wp_unslash( $_POST['kasa_organisation_id'] ) ) : 0;
 
-		if ( '' === $value ) {
-			delete_post_meta( $post_id, Kasa_Scope::ORGANISATION_META );
-		} else {
-			update_post_meta( $post_id, Kasa_Scope::ORGANISATION_META, $value );
-		}
+		Kasa_Organisation::set_for_group( $post_id, $term_id );
 
 		Kasa_Scope::flush_cache();
+	}
+
+	/**
+	 * Show the organisation on the users list.
+	 *
+	 * A partner with the wrong organisation, or none, is the failure that is
+	 * hardest to spot from the outside, so it is worth being visible without
+	 * opening each profile.
+	 *
+	 * @param array $columns Existing columns.
+	 * @return array
+	 */
+	public static function add_users_column( $columns ) {
+		if ( current_user_can( 'kasa_manage_academy' ) ) {
+			$columns['kasa_organisation'] = __( 'Organisation', 'kasa-academy' );
+		}
+
+		return $columns;
+	}
+
+	/**
+	 * Fill the users list column.
+	 *
+	 * @param string $output      Existing output.
+	 * @param string $column_name Column being rendered.
+	 * @param int    $user_id     User ID.
+	 * @return string
+	 */
+	public static function render_users_column( $output, $column_name, $user_id ) {
+		if ( 'kasa_organisation' !== $column_name ) {
+			return $output;
+		}
+
+		$term_id = Kasa_Scope::organisation_id( $user_id );
+
+		if ( $term_id ) {
+			return esc_html( Kasa_Organisation::name( $term_id ) );
+		}
+
+		if ( user_can( $user_id, 'kasa_view_org_cohorts' ) ) {
+			return '<span style="color:#b32d2e">' . esc_html__( 'none, sees nothing', 'kasa-academy' ) . '</span>';
+		}
+
+		return '<span aria-hidden="true">—</span>';
 	}
 }

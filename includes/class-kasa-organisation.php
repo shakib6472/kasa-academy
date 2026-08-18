@@ -42,6 +42,70 @@ class Kasa_Organisation {
 	 */
 	public static function init() {
 		add_action( 'init', array( __CLASS__, 'register_taxonomy' ), 20 );
+
+		add_filter( 'parent_file', array( __CLASS__, 'keep_kasa_menu_open' ) );
+		add_filter( 'submenu_file', array( __CLASS__, 'highlight_submenu_item' ) );
+	}
+
+	/**
+	 * Where organisations are managed.
+	 *
+	 * @return string
+	 */
+	public static function admin_url() {
+		return 'edit-tags.php?taxonomy=' . self::TAXONOMY . '&post_type=' . self::group_post_type();
+	}
+
+	/**
+	 * The group post type slug.
+	 *
+	 * @return string
+	 */
+	private static function group_post_type() {
+		return function_exists( 'learndash_get_post_type_slug' )
+			? learndash_get_post_type_slug( 'group' )
+			: 'groups';
+	}
+
+	/**
+	 * Whether the current screen is the organisations screen.
+	 *
+	 * @return bool
+	 */
+	private static function is_organisation_screen() {
+		global $pagenow;
+
+		if ( 'edit-tags.php' !== $pagenow && 'term.php' !== $pagenow ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Reading the current screen, not acting on it.
+		return isset( $_GET['taxonomy'] ) && self::TAXONOMY === sanitize_key( wp_unslash( $_GET['taxonomy'] ) );
+	}
+
+	/**
+	 * Keep the Kasa Academy menu open while managing organisations.
+	 *
+	 * The organisations screen is a WordPress taxonomy page reached through a
+	 * submenu entry we add by URL. WordPress works out which menu to highlight
+	 * from the current file, and edit-tags.php belongs to no plugin, so
+	 * without this the whole menu closes and the person loses their place.
+	 *
+	 * @param string $parent_file Current parent menu file.
+	 * @return string
+	 */
+	public static function keep_kasa_menu_open( $parent_file ) {
+		return self::is_organisation_screen() ? Kasa_Admin_Menu::SLUG : $parent_file;
+	}
+
+	/**
+	 * Highlight the Organisations item while on it.
+	 *
+	 * @param string $submenu_file Current submenu file.
+	 * @return string
+	 */
+	public static function highlight_submenu_item( $submenu_file ) {
+		return self::is_organisation_screen() ? self::admin_url() : $submenu_file;
 	}
 
 	/**
@@ -54,13 +118,9 @@ class Kasa_Organisation {
 	 * @return void
 	 */
 	public static function register_taxonomy() {
-		$group_post_type = function_exists( 'learndash_get_post_type_slug' )
-			? learndash_get_post_type_slug( 'group' )
-			: 'groups';
-
 		register_taxonomy(
 			self::TAXONOMY,
-			$group_post_type,
+			self::group_post_type(),
 			array(
 				'labels'            => array(
 					'name'          => __( 'Organisations', 'kasa-academy' ),

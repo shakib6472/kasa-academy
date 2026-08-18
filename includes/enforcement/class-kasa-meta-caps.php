@@ -71,6 +71,10 @@ class Kasa_Meta_Caps {
 	 * @return array
 	 */
 	public static function map( $caps, $cap, $user_id, $args ) {
+		if ( in_array( $cap, self::user_capabilities(), true ) ) {
+			return self::map_user_capability( $caps, $user_id, $args );
+		}
+
 		$definitions = self::definitions();
 
 		if ( ! isset( $definitions[ $cap ] ) ) {
@@ -106,5 +110,80 @@ class Kasa_Meta_Caps {
 			: kasa_user_can_see_learner( $object_id, $user_id );
 
 		return $in_scope ? array( $primitive ) : array( 'do_not_allow' );
+	}
+
+	/**
+	 * WordPress capabilities that act on one particular user account.
+	 *
+	 * @return array
+	 */
+	private static function user_capabilities() {
+		return array( 'edit_user', 'delete_user', 'promote_user', 'remove_user' );
+	}
+
+	/**
+	 * Confine a facilitator's power over user accounts to their own learners.
+	 *
+	 * Turning on LearnDash's group leader user management, which the matrix
+	 * requires so a facilitator can add and remove learners, grants the raw
+	 * edit_users capability. From
+	 * class-ld-settings-section-groups-group-leader-user.php:
+	 *
+	 *     'manage_users_capabilities' => array(
+	 *         'basic' => array( 'edit_users' ),
+	 *
+	 * edit_users is a site wide WordPress capability with no notion of groups,
+	 * so it lets a facilitator open and change any account on the platform.
+	 *
+	 * This is invisible from the interface, which is what makes it dangerous.
+	 * list_users is only granted at the advanced level, so the Users screen
+	 * stays refused and everything looks correctly locked down; but
+	 * user-edit.php?user_id=N loads any child's profile, email address and all,
+	 * with a working Update button. It is only found by changing an ID in a
+	 * URL, which is exactly why the brief insists on testing that way.
+	 *
+	 * A facilitator keeps this power over the children in their own groups,
+	 * because that is what the member management feature is for. Everyone
+	 * else's children, and every other adult's account, are refused.
+	 *
+	 * @param array $caps    Primitive capabilities WordPress worked out.
+	 * @param int   $user_id User being checked.
+	 * @param array $args    Arguments; $args[0] is the target user ID.
+	 * @return array
+	 */
+	private static function map_user_capability( $caps, $user_id, $args ) {
+		$user_id = absint( $user_id );
+
+		if ( ! $user_id ) {
+			return $caps;
+		}
+
+		// Administrators are unrestricted.
+		if ( Kasa_Scope::is_unrestricted( $user_id ) ) {
+			return $caps;
+		}
+
+		$target = isset( $args[0] ) ? absint( $args[0] ) : 0;
+
+		// Your own account is your own business.
+		if ( $target && $target === $user_id ) {
+			return $caps;
+		}
+
+		/*
+		 * Only narrow people who were given this reach by the group leader
+		 * setting. Anyone else is already refused by WordPress, and returning
+		 * do_not_allow for them would be a second refusal that could mask a
+		 * real capability question somewhere else.
+		 */
+		if ( ! user_can( $user_id, 'kasa_view_group_learners' ) ) {
+			return $caps;
+		}
+
+		if ( ! $target ) {
+			return array( 'do_not_allow' );
+		}
+
+		return kasa_user_can_see_learner( $target, $user_id ) ? $caps : array( 'do_not_allow' );
 	}
 }

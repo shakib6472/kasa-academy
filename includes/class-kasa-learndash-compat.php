@@ -39,6 +39,97 @@ class Kasa_LearnDash_Compat {
 		add_action( 'admin_init', array( __CLASS__, 'ensure_group_member_management' ), 20 );
 		add_action( 'admin_notices', array( __CLASS__, 'advanced_level_notice' ) );
 		add_filter( 'learndash_group_leader_has_cap_filter', array( __CLASS__, 'restrict_group_editing' ), 10, 4 );
+		add_action( 'pre_get_posts', array( __CLASS__, 'scope_admin_group_queries' ) );
+	}
+
+	/**
+	 * Hold LearnDash's own admin screens to the Kasa scope.
+	 *
+	 * LearnDash decides which groups to show a group leader with
+	 * learndash_get_administrators_group_ids(), which reads the
+	 * learndash_group_leaders_* user meta and nothing else. For a facilitator
+	 * that agrees with us. For a partner it does not, because a partner is
+	 * scoped by organisation while their leader assignments exist only so that
+	 * LearnDash will populate their reporting.
+	 *
+	 * The two disagreeing is not theoretical. Assign a partner as leader of a
+	 * group belonging to another organisation, which is one wrong click on the
+	 * group screen, and the Group Administration page at
+	 * admin.php?page=group_admin_page lists that group for them, complete with
+	 * List Users and Export Progress. Our own screens would refuse it; theirs
+	 * did not.
+	 *
+	 * There is no filter on learndash_get_administrators_group_ids(), but the
+	 * screens all reach the database through WP_Query with post__in, so
+	 * narrowing that covers every one of them at once rather than each screen
+	 * being patched as somebody notices it.
+	 *
+	 * @param WP_Query $query Query about to run.
+	 * @return void
+	 */
+	public static function scope_admin_group_queries( $query ) {
+		if ( ! is_admin() || ! $query instanceof WP_Query ) {
+			return;
+		}
+
+		/*
+		 * Scoping answers "which groups may this user see" by running a group
+		 * query of its own. Filtering that query would call scoping again,
+		 * which would run the query again, until the request dies. The flag is
+		 * set by Kasa_Scope on its own lookups; the static below catches any
+		 * other nested case.
+		 */
+		if ( $query->get( 'kasa_scope_query' ) ) {
+			return;
+		}
+
+		static $running = false;
+
+		if ( $running ) {
+			return;
+		}
+
+		if ( ! function_exists( 'learndash_get_post_type_slug' ) ) {
+			return;
+		}
+
+		$group_type = learndash_get_post_type_slug( 'group' );
+		$queried    = $query->get( 'post_type' );
+
+		$is_group_query = is_array( $queried )
+			? in_array( $group_type, $queried, true )
+			: $group_type === $queried;
+
+		if ( ! $is_group_query ) {
+			return;
+		}
+
+		$user_id = get_current_user_id();
+
+		if ( ! $user_id || Kasa_Scope::is_unrestricted( $user_id ) ) {
+			return;
+		}
+
+		// Only narrow the roles that are supposed to see groups at all.
+		// Anyone else is refused before a query is reached.
+		if ( ! user_can( $user_id, 'kasa_view_group_learners' ) ) {
+			return;
+		}
+
+		$running = true;
+		$allowed = kasa_get_visible_group_ids( $user_id );
+		$running = false;
+
+		$existing = $query->get( 'post__in' );
+
+		if ( ! empty( $existing ) && is_array( $existing ) ) {
+			$allowed = array_intersect( $allowed, array_map( 'absint', $existing ) );
+		}
+
+		// An empty post__in is ignored by WP_Query, which would return
+		// everything. Zero is a post ID that cannot exist, so it returns
+		// nothing, which is what an empty scope has to mean.
+		$query->set( 'post__in', empty( $allowed ) ? array( 0 ) : array_values( $allowed ) );
 	}
 
 	/**

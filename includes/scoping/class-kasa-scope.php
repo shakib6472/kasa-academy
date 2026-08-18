@@ -172,36 +172,51 @@ class Kasa_Scope {
 	 * The organisation a user belongs to.
 	 *
 	 * @param int $user_id User ID.
-	 * @return string Empty string when unset.
+	 * @return int Term ID, or 0 when unset or no longer valid.
 	 */
 	public static function organisation_id( $user_id ) {
 		$user_id = absint( $user_id );
 
 		if ( ! $user_id ) {
-			return '';
+			return 0;
 		}
 
 		return self::normalise_organisation_id( get_user_meta( $user_id, self::ORGANISATION_META, true ) );
 	}
 
 	/**
-	 * Reduce an organisation identifier to a comparable string.
+	 * Reduce an organisation value to a term ID we are willing to act on.
 	 *
-	 * @param mixed $value Raw meta value.
-	 * @return string Empty string when the value is not usable.
+	 * Anything that is not a positive integer naming a real organisation
+	 * becomes 0, which every caller treats as "no groups". That covers an
+	 * unset field, a leftover value from before organisations were a
+	 * taxonomy, and an organisation that has since been deleted.
+	 *
+	 * @param mixed $value Raw value.
+	 * @return int
 	 */
 	private static function normalise_organisation_id( $value ) {
 		if ( is_array( $value ) || is_object( $value ) || is_bool( $value ) || null === $value ) {
-			return '';
+			return 0;
 		}
 
-		return trim( (string) $value );
+		$term_id = absint( $value );
+
+		if ( ! $term_id ) {
+			return 0;
+		}
+
+		if ( ! class_exists( 'Kasa_Organisation' ) || ! Kasa_Organisation::exists( $term_id ) ) {
+			return 0;
+		}
+
+		return $term_id;
 	}
 
 	/**
 	 * The groups belonging to an organisation.
 	 *
-	 * @param string $organisation_id Organisation identifier.
+	 * @param int $organisation_id Organisation term ID.
 	 * @return array
 	 */
 	public static function organisation_group_ids( $organisation_id ) {
@@ -210,18 +225,22 @@ class Kasa_Scope {
 		/*
 		 * The guard that matters most in this file.
 		 *
-		 * A partner with no organisation set must see nothing. Falling through
-		 * to the query below with an empty value would ask for "groups whose
-		 * kasa_organisation_id is the empty string", and every group that was
-		 * never tagged answers to that. One unset user meta field would hand a
+		 * A partner with no organisation, or one pointing at an organisation
+		 * that no longer exists, must see nothing. Falling through to the
+		 * query below with an empty value would drop the tax_query and return
+		 * every group on the site, so one unset user meta field would hand a
 		 * partner every cohort on the platform.
 		 */
-		if ( '' === $organisation_id ) {
+		if ( ! $organisation_id ) {
 			return array();
 		}
 
 		$query = new WP_Query(
 			array(
+				// Marks this as scoping's own lookup. Anything filtering group
+				// queries must leave it alone, or asking "which groups may
+				// this user see" runs the filter that asks the same question.
+				'kasa_scope_query'       => true,
 				'post_type'              => self::group_post_type(),
 				'post_status'            => self::VISIBLE_GROUP_STATUSES,
 				'posts_per_page'         => -1,
@@ -230,11 +249,12 @@ class Kasa_Scope {
 				'no_found_rows'          => true,
 				'update_post_meta_cache' => false,
 				'update_post_term_cache' => false,
-				'meta_query'             => array(
+				'tax_query'              => array(
 					array(
-						'key'     => self::ORGANISATION_META,
-						'value'   => $organisation_id,
-						'compare' => '=',
+						'taxonomy'         => Kasa_Organisation::TAXONOMY,
+						'field'            => 'term_id',
+						'terms'            => array( $organisation_id ),
+						'include_children' => false,
 					),
 				),
 			)
@@ -276,6 +296,10 @@ class Kasa_Scope {
 	private static function all_group_ids() {
 		$query = new WP_Query(
 			array(
+				// Marks this as scoping's own lookup. Anything filtering group
+				// queries must leave it alone, or asking "which groups may
+				// this user see" runs the filter that asks the same question.
+				'kasa_scope_query'       => true,
 				'post_type'              => self::group_post_type(),
 				'post_status'            => array( 'publish', 'pending', 'draft', 'future', 'private' ),
 				'posts_per_page'         => -1,

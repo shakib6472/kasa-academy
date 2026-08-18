@@ -150,6 +150,18 @@ function kasa_academy_capability_definitions() {
 			'description' => 'LearnDash grants this once, to the roles that exist at that moment, and records the fact in the learndash_modules_reports_capabilities_granted option. A role created afterwards never receives it, so this plugin grants it explicitly.',
 			'integration' => true,
 		),
+		'wpProQuiz_show'                   => array(
+			'label'       => 'Reach the Advanced Quiz screen',
+			'group'       => 'LearnDash integration',
+			'description' => 'The capability LearnDash registers its Advanced Quiz page with. It is needed to open the statistics module at all, but it also opens the quiz builder, the question editor and the import and export tools, none of which a facilitator may use. Kasa_Guards therefore allows only module=statistics for anyone who is not an administrator and refuses every other module on that page.',
+			'integration' => true,
+		),
+		'wpProQuiz_show_statistics'       => array(
+			'label'       => 'Open a quiz attempt and its answers',
+			'group'       => 'LearnDash integration',
+			'description' => 'What LearnDash requires to open the quiz statistics screen, where a learner\'s individual answers are read. Granted to the Facilitator so the matrix row "See a learner\'s quiz answers, own groups" is actually deliverable, and deliberately withheld from the Implementation Partner. The capability carries no notion of a group, so it is paired with a scope guard in Kasa_Guards that resolves the attempt to the learner who made it and refuses anyone outside their own groups.',
+			'integration' => true,
+		),
 	);
 }
 
@@ -210,6 +222,8 @@ function kasa_academy_role_definitions() {
 				'kasa_view_facilitator_resources',
 				'group_leader',
 				'propanel_widgets',
+				'wpProQuiz_show',
+				'wpProQuiz_show_statistics',
 			),
 		),
 
@@ -301,6 +315,8 @@ function kasa_academy_role_definitions() {
 				// is manage_options, and learndash_is_group_leader_user()
 				// returns false for administrators by design.
 				'propanel_widgets',
+				'wpProQuiz_show',
+				'wpProQuiz_show_statistics',
 			),
 		),
 	);

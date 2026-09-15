@@ -290,7 +290,18 @@ class Kasa_Guards {
 			return;
 		}
 
-		wp_safe_redirect( home_url( '/' ) );
+		/*
+		 * Turned away towards their own dashboard rather than the front page.
+		 * A learner reaches wp-admin by guessing, because WordPress itself
+		 * treats /dashboard/ and /admin/ as shortcuts to it, so landing them on
+		 * the marketing home page answers a question they were not asking. The
+		 * dashboard is what they meant.
+		 */
+		$destination = class_exists( 'Kasa_Dashboard_Module' )
+			? Kasa_Dashboard_Module::url()
+			: home_url( '/' );
+
+		wp_safe_redirect( $destination );
 		exit;
 	}
 

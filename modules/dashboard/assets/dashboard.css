@@ -1,0 +1,1281 @@
+/**
+ * Learner dashboard.
+ *
+ * The vocabulary is taken from the course page in
+ * mu-plugins/kasa-academy-course-page.php, so the dashboard and a course read
+ * as one product: pill shapes, 900 weights, .14em uppercase eyebrows, 135deg
+ * gradients and the floating glyph decoration.
+ *
+ * The page ground is the site chrome palette from the Elementor kit, not a
+ * course palette. The dashboard sits above every course rather than inside one,
+ * so borrowing one course's colour for the whole page would be a lie. Programme
+ * cards take their own course's colour instead, which arrives per card.
+ *
+ * Everything is prefixed kd- so nothing here can collide with the theme,
+ * Elementor or LearnDash.
+ */
+
+.kd {
+	--kd-sage: #9CAF88;
+	--kd-sage-deep: #4E6B44;
+	--kd-gold: #E8A93C;
+	--kd-cream: #F2F8F4;
+	--kd-cream-2: #EBF3EA;
+	--kd-ink: #1b1f2a;
+	--kd-deep: #203F2F;
+	/* .68 rather than .6: at .6 this is 4.38:1 on white, just under the 4.5:1
+	   AA floor, and it is the colour of every explanatory line on the page. */
+	--kd-muted: rgba(27, 31, 42, .68);
+	--kd-line: rgba(27, 31, 42, .10);
+	--kd-card: #fff;
+	--kd-radius-lg: 2.5rem;
+	--kd-radius-md: 1.5rem;
+	--kd-radius-sm: 1rem;
+	--kd-accent-a: #F59E0B;
+	--kd-accent-b: #EC4899;
+
+	color: var(--kd-ink);
+	font-family: "Figtree", ui-sans-serif, system-ui, sans-serif;
+	line-height: 1.6;
+}
+
+.kd *,
+.kd *::before,
+.kd *::after {
+	box-sizing: border-box;
+}
+
+/*
+ * The theme underlines body links: .page-content a { text-decoration: underline }.
+ * The dashboard shortcode renders inside .page-content, so that rule reaches
+ * every link here — and because a programme card is itself one big link, the
+ * underline runs through the course title, the step count and the button
+ * caption alike. text-decoration also propagates to descendants, so it cannot
+ * be turned off further in.
+ *
+ * .kd-card and .kd-btn are a single class each and lose to .page-content a on
+ * specificity. The class is repeated here purely to win that: .kd.kd a matches
+ * the same container and outranks the theme without touching it, and without
+ * needing !important or a new rule for every component added later.
+ *
+ * .kd-linkish keeps its underline on purpose. It is the only thing here that is
+ * meant to read as a plain link rather than a component.
+ */
+.kd.kd a {
+	text-decoration: none;
+}
+
+
+/* --------------------------------------------------------------------------
+   Shared vocabulary
+   -------------------------------------------------------------------------- */
+
+.kd-eyebrow {
+	margin: 0 0 .5rem;
+	font-size: .6875rem;
+	font-weight: 900;
+	text-transform: uppercase;
+	letter-spacing: .14em;
+}
+
+.kd-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: .5rem;
+	border: 0;
+	border-radius: 9999px;
+	padding: .85rem 1.6rem;
+	/* 48px, comfortably past the 44px minimum. Many of these learners are
+	   on a shared phone with a cracked screen. */
+	min-height: 48px;
+	font-family: "Fredoka", "Figtree", sans-serif;
+	font-size: 1.0625rem;
+	font-weight: 600;
+	text-decoration: none;
+	cursor: pointer;
+	transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.kd-btn:hover,
+.kd-btn:focus-visible {
+	transform: translateY(-2px);
+}
+
+.kd-btn-solid {
+	background: linear-gradient(135deg, var(--kd-sage-deep) 0%, var(--kd-sage) 100%);
+	color: #fff;
+	box-shadow: 0 10px 20px -8px rgba(78, 107, 68, .6);
+}
+
+.kd-btn-ghost {
+	background: #fff;
+	color: var(--kd-deep);
+	border: 2px solid var(--kd-line);
+}
+
+
+/* --------------------------------------------------------------------------
+   Hero
+   -------------------------------------------------------------------------- */
+
+.kd-hero {
+	position: relative;
+	overflow: hidden;
+	border-radius: var(--kd-radius-lg);
+	padding: 2.25rem 2rem;
+	color: #fff;
+	background: linear-gradient(135deg, var(--kd-deep) 0%, var(--kd-sage-deep) 60%, var(--kd-sage) 100%);
+	box-shadow: 0 20px 60px -25px rgba(0, 0, 0, .45);
+}
+
+.kd-glyph {
+	position: absolute;
+	font-weight: 900;
+	opacity: .22;
+	pointer-events: none;
+	user-select: none;
+}
+
+.kd-g1 { top: 1.4rem; right: 2rem; font-size: 2.25rem; transform: rotate(-6deg); }
+.kd-g2 { bottom: 1rem; left: 2.5rem; font-size: 1.875rem; color: var(--kd-gold); opacity: .5; }
+.kd-g3 { top: 4rem; left: 34%; font-size: 1.5rem; transform: rotate(12deg); color: var(--kd-accent-a); opacity: .45; }
+.kd-g4 { bottom: 2.6rem; right: 30%; font-size: 1.5rem; color: var(--kd-accent-b); opacity: .4; }
+
+.kd-hero .kd-eyebrow {
+	color: rgba(255, 255, 255, .72);
+}
+
+.kd-title {
+	margin: 0 0 .5rem;
+	font-family: "Fredoka", "Figtree", sans-serif;
+	font-weight: 600;
+	font-size: clamp(1.8rem, 5vw, 2.6rem);
+	line-height: 1.2;
+	color: #fff;
+}
+
+.kd-lede {
+	margin: 0;
+	max-width: 48ch;
+	font-size: 1.0625rem;
+	color: rgba(255, 255, 255, .88);
+}
+
+
+/* --------------------------------------------------------------------------
+   The one next step, inside the hero
+   -------------------------------------------------------------------------- */
+
+.kd-next {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	flex-wrap: wrap;
+	margin-top: 1.4rem;
+	padding: 1rem 1.15rem;
+	border: 1px solid rgba(255, 255, 255, .24);
+	border-radius: var(--kd-radius-md);
+	background: rgba(255, 255, 255, .14);
+	backdrop-filter: blur(4px);
+}
+
+.kd-next-what {
+	flex: 1;
+	min-width: 200px;
+}
+
+.kd-next-what small {
+	display: block;
+	font-size: .6875rem;
+	font-weight: 900;
+	letter-spacing: .14em;
+	text-transform: uppercase;
+	color: rgba(255, 255, 255, .7);
+}
+
+.kd-next-what strong {
+	display: block;
+	margin-top: .15rem;
+	font-family: "Fredoka", "Figtree", sans-serif;
+	font-weight: 500;
+	font-size: 1.125rem;
+	color: #fff;
+}
+
+.kd-btn-white {
+	background: #fff;
+	color: var(--kd-deep);
+	box-shadow: 0 10px 15px -3px rgba(0, 0, 0, .14);
+}
+
+
+/* --------------------------------------------------------------------------
+   Counts, for a facilitator or a partner
+   -------------------------------------------------------------------------- */
+
+.kd-stats {
+	display: flex;
+	gap: .75rem;
+	flex-wrap: wrap;
+	margin-top: 1.4rem;
+}
+
+.kd-stat {
+	flex: 1;
+	min-width: 120px;
+	padding: .85rem 1rem;
+	border: 1px solid rgba(255, 255, 255, .24);
+	border-radius: var(--kd-radius-sm);
+	background: rgba(255, 255, 255, .14);
+}
+
+.kd-stat b {
+	display: block;
+	font-family: "Fredoka", "Figtree", sans-serif;
+	font-weight: 600;
+	font-size: 1.75rem;
+	line-height: 1.1;
+	font-variant-numeric: tabular-nums;
+	color: #fff;
+}
+
+.kd-stat span {
+	font-size: .75rem;
+	font-weight: 800;
+	letter-spacing: .08em;
+	text-transform: uppercase;
+	color: rgba(255, 255, 255, .75);
+}
+
+
+/* --------------------------------------------------------------------------
+   Section headings
+   -------------------------------------------------------------------------- */
+
+.kd-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+	margin: 48px 0 18px;
+}
+
+.kd-head h2 {
+	margin: 0;
+	font-family: "Outfit", "Figtree", sans-serif;
+	font-size: 1.5rem;
+	font-weight: 700;
+	color: var(--kd-deep);
+}
+
+.kd-head p {
+	margin: .15rem 0 0;
+	color: var(--kd-muted);
+	font-size: .9375rem;
+}
+
+
+/* --------------------------------------------------------------------------
+   Programme and group cards
+
+   Each card carries its own course's colour, handed in as --kd-p, --kd-s and
+   --kd-p-rgb. The dashboard sits above every course rather than inside one, so
+   the page keeps the site chrome and the cards do the colouring. It also means
+   a learner recognises a card by the same colour the course itself uses.
+   -------------------------------------------------------------------------- */
+
+.kd-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	gap: 20px;
+}
+
+.kd-card {
+	--kd-p: #6366F1;
+	--kd-s: #22D3EE;
+	--kd-p-rgb: 99, 102, 241;
+
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	padding: 1.35rem;
+	border: 2px solid rgba(var(--kd-p-rgb), .14);
+	border-radius: var(--kd-radius-md);
+	background: var(--kd-card);
+	color: inherit;
+	text-decoration: none;
+	transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+
+.kd-card:hover,
+.kd-card:focus-visible {
+	transform: translateY(-3px);
+	border-color: rgba(var(--kd-p-rgb), .32);
+	box-shadow: 0 14px 30px -14px rgba(var(--kd-p-rgb), .5);
+	color: inherit;
+}
+
+.kd-card-top {
+	display: flex;
+	align-items: flex-start;
+	gap: 1rem;
+}
+
+.kd-card-emoji {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	width: 52px;
+	height: 52px;
+	border-radius: var(--kd-radius-sm);
+	font-size: 1.6rem;
+	background: linear-gradient(135deg, var(--kd-p) 0%, var(--kd-s) 100%);
+}
+
+.kd-card h3 {
+	margin: 0 0 .2rem;
+	font-family: "Outfit", "Figtree", sans-serif;
+	font-size: 1.125rem;
+	font-weight: 600;
+	line-height: 1.35;
+	color: var(--kd-ink);
+}
+
+.kd-card-meta {
+	font-size: .8125rem;
+	color: var(--kd-muted);
+}
+
+.kd-card-row {
+	display: flex;
+	align-items: center;
+	gap: 1.1rem;
+}
+
+.kd-card-go {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	margin-top: auto;
+	min-height: 44px;
+	padding: .6rem 1.2rem;
+	border-radius: 9999px;
+	font-family: "Fredoka", "Figtree", sans-serif;
+	font-weight: 500;
+	font-size: .9375rem;
+	color: #fff;
+	background: linear-gradient(135deg, var(--kd-p) 0%, var(--kd-s) 100%);
+}
+
+.kd-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: .4rem;
+	border-radius: 9999px;
+	padding: .32rem .8rem;
+	font-size: .75rem;
+	font-weight: 900;
+	white-space: nowrap;
+}
+
+.kd-pill-tag {
+	margin-top: .4rem;
+	background: rgba(var(--kd-p-rgb), .1);
+	/* The course colour is chosen in the editor with a free colour wheel, so it
+	   can be any lightness. Used as ink on its own 10% tint it fails contrast
+	   even for the colours already on this site: #6366F1 is 3.94:1, #22D3EE is
+	   1.69:1. Mixing it into the ink keeps the course identity while staying
+	   readable whatever colour is picked. */
+	color: var(--kd-ink);
+	color: color-mix(in srgb, var(--kd-p) 40%, var(--kd-ink));
+}
+
+
+/* --------------------------------------------------------------------------
+   Progress ring. The same idea as the course page, so a learner meets one
+   visual language rather than two.
+   -------------------------------------------------------------------------- */
+
+.kd-ring {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	width: 84px;
+	height: 84px;
+}
+
+.kd-ring svg {
+	transform: rotate(-90deg);
+}
+
+.kd-ring-num {
+	position: absolute;
+	font-size: 1.15rem;
+	font-weight: 900;
+	font-variant-numeric: tabular-nums;
+	color: var(--kd-p);
+}
+
+.kd-ring-side {
+	flex: 1;
+}
+
+.kd-ring-lab {
+	margin-bottom: .2rem;
+	font-size: .6875rem;
+	font-weight: 900;
+	letter-spacing: .14em;
+	text-transform: uppercase;
+	color: var(--kd-p);
+}
+
+
+/* --------------------------------------------------------------------------
+   Empty and placeholder states
+   -------------------------------------------------------------------------- */
+
+.kd-empty {
+	margin-top: 24px;
+	padding: 2.4rem 1.5rem;
+	text-align: center;
+	background: var(--kd-card);
+	border: 2px dashed var(--kd-line);
+	border-radius: var(--kd-radius-md);
+}
+
+.kd-empty-mark {
+	margin-bottom: .6rem;
+	font-size: 2.4rem;
+	line-height: 1;
+}
+
+.kd-empty strong {
+	display: block;
+	margin-bottom: .35rem;
+	font-family: "Fredoka", "Figtree", sans-serif;
+	font-weight: 500;
+	font-size: 1.125rem;
+}
+
+.kd-empty p {
+	margin: 0 auto 1.1rem;
+	max-width: 46ch;
+	color: var(--kd-muted);
+	font-size: .9375rem;
+}
+
+.kd-empty p:last-child {
+	margin-bottom: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   Administrator preview bar
+   -------------------------------------------------------------------------- */
+
+.kd-adminbar {
+	display: flex;
+	align-items: center;
+	gap: .6rem;
+	flex-wrap: wrap;
+	margin-top: 28px;
+	padding: .9rem 1.15rem;
+	border-radius: var(--kd-radius-md);
+	background: var(--kd-deep);
+	color: #fff;
+	font-size: .875rem;
+}
+
+.kd-adminbar b {
+	font-size: .6875rem;
+	font-weight: 900;
+	letter-spacing: .14em;
+	text-transform: uppercase;
+	color: rgba(255, 255, 255, .66);
+}
+
+.kd-adminbar-spacer {
+	flex: 1;
+}
+
+.kd-adminbar-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	padding: .5rem 1.1rem;
+	border: 2px solid rgba(255, 255, 255, .28);
+	border-radius: 9999px;
+	background: transparent;
+	color: #fff;
+	font-weight: 800;
+	font-size: .8125rem;
+	text-decoration: none;
+}
+
+.kd-adminbar-btn:hover,
+.kd-adminbar-btn:focus-visible {
+	background: rgba(255, 255, 255, .12);
+	color: #fff;
+}
+
+.kd-adminbar-btn.is-on {
+	background: #fff;
+	color: var(--kd-deep);
+	border-color: #fff;
+}
+
+
+/* --------------------------------------------------------------------------
+   Keyboard focus. Visible for keyboard users, invisible for mouse users,
+   which matters on the low cost devices many of these learners share.
+   -------------------------------------------------------------------------- */
+
+.kd a:focus-visible,
+.kd button:focus-visible {
+	/* Gold alone is 2.07:1 on a white card, below the 3:1 a focus indicator
+	   needs. A dark core carries the contrast and the gold halo keeps the ring
+	   visible against the dark green hero as well. */
+	outline: 3px solid var(--kd-deep);
+	outline-offset: 2px;
+	box-shadow: 0 0 0 6px rgba(232, 169, 60, .85);
+	border-radius: .35rem;
+}
+
+
+/* --------------------------------------------------------------------------
+   Badges. Won ones in colour, the rest grey but still legible, because a badge
+   nobody has won yet is there to be wanted rather than to be dismissed.
+   -------------------------------------------------------------------------- */
+
+.kd-badges {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+	gap: 16px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.kd-badge {
+	--kd-p: #4E6B44;
+
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: .5rem;
+	padding: 1.25rem 1rem;
+	/* Grid items default to min-width:auto, which stops them shrinking below
+	   their content and is what lets a long word push the track wider. */
+	min-width: 0;
+	text-align: center;
+	background: var(--kd-card);
+	border: 2px solid var(--kd-line);
+	border-radius: var(--kd-radius-md);
+}
+
+.kd-badge-mark {
+	display: grid;
+	place-items: center;
+	width: 76px;
+	height: 76px;
+	font-size: 2.1rem;
+	line-height: 1;
+	border-radius: 9999px;
+	/* Older phones have no color-mix(), and an unsupported value would drop the
+	   whole declaration and leave the badge blank, so a plain colour is stated
+	   first and only then improved on. */
+	background: var(--kd-p);
+	background: linear-gradient(135deg, var(--kd-p), color-mix(in srgb, var(--kd-p) 55%, #fff));
+	/* The inset hairline keeps the mark visible when the badge colour is very
+	   pale, which would otherwise be a white circle on a white card. */
+	box-shadow: inset 0 0 0 1px rgba(27, 31, 42, .10), 0 6px 18px rgba(27, 31, 42, .16);
+}
+
+.kd-badge-mark img {
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	border-radius: 9999px;
+}
+
+.kd-badge-name {
+	font-weight: 900;
+	font-size: .95rem;
+	/* Badge names are written by an editor and can be a single long compound
+	   word. The tiles are only about 104px wide on a phone, so a word that
+	   cannot break would spill across the card border. */
+	overflow-wrap: anywhere;
+}
+
+.kd-badge-note {
+	font-size: .8rem;
+	color: var(--kd-muted);
+	overflow-wrap: anywhere;
+}
+
+.kd-badge-state {
+	margin-top: auto;
+	padding: .2rem .7rem;
+	font-size: .7rem;
+	font-weight: 900;
+	text-transform: uppercase;
+	letter-spacing: .1em;
+	border-radius: 9999px;
+	background: var(--kd-cream-2);
+	color: var(--kd-sage-deep);
+}
+
+/* Not yet won. The mark loses its colour; the words keep theirs. */
+.kd-badge.is-locked .kd-badge-mark {
+	filter: grayscale(1);
+	opacity: .45;
+	box-shadow: inset 0 0 0 1px rgba(27, 31, 42, .12);
+}
+
+.kd-badge.is-locked .kd-badge-state {
+	background: var(--kd-line);
+	color: var(--kd-muted);
+}
+
+
+/* --------------------------------------------------------------------------
+   Certificates.
+   -------------------------------------------------------------------------- */
+
+.kd-cert {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: .75rem;
+	padding: 1.5rem;
+	background: var(--kd-card);
+	border: 2px solid rgba(var(--kd-p-rgb), .18);
+	border-radius: var(--kd-radius-md);
+}
+
+.kd-cert h3 {
+	margin: 0;
+	font-family: "Fredoka", "Figtree", sans-serif;
+	font-size: 1.15rem;
+}
+
+.kd-cert p {
+	margin: 0;
+	font-size: .9rem;
+	color: var(--kd-muted);
+}
+
+.kd-cert-seal {
+	display: grid;
+	place-items: center;
+	width: 58px;
+	height: 58px;
+	font-size: 1.7rem;
+	line-height: 1;
+	border-radius: 9999px;
+	background: linear-gradient(135deg, var(--kd-p), var(--kd-s));
+}
+
+.kd-cert.is-locked {
+	border-style: dashed;
+	border-color: var(--kd-line);
+}
+
+.kd-cert.is-locked .kd-cert-seal {
+	background: var(--kd-cream-2);
+	filter: grayscale(1);
+}
+
+
+/* --------------------------------------------------------------------------
+   Downloads, and the form a facilitator adds one with.
+   -------------------------------------------------------------------------- */
+
+.kd-notice {
+	display: flex;
+	align-items: center;
+	gap: .6rem;
+	margin-top: 20px;
+	padding: .9rem 1.15rem;
+	border-radius: var(--kd-radius-sm);
+	border: 2px solid transparent;
+	font-weight: 600;
+}
+
+.kd-notice-ok {
+	background: var(--kd-cream-2);
+	border-color: rgba(78, 107, 68, .35);
+	color: var(--kd-sage-deep);
+}
+
+.kd-notice-error {
+	background: #FDECEC;
+	border-color: rgba(158, 32, 32, .35);
+	/* 6.4:1 on that ground. Red on pink is the usual way an error message
+	   becomes the least readable text on the page. */
+	color: #8A1C1C;
+}
+
+.kd-docs {
+	display: grid;
+	gap: 12px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.kd-doc {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	flex-wrap: wrap;
+	padding: 1rem 1.15rem;
+	background: var(--kd-card);
+	border: 2px solid var(--kd-line);
+	border-radius: var(--kd-radius-md);
+}
+
+.kd-doc-kind {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 52px;
+	height: 52px;
+	border-radius: var(--kd-radius-sm);
+	background: var(--kd-cream-2);
+	color: var(--kd-sage-deep);
+	font-size: .625rem;
+	font-weight: 900;
+	letter-spacing: .06em;
+}
+
+.kd-doc-about {
+	flex: 1;
+	min-width: 180px;
+	display: flex;
+	flex-direction: column;
+	gap: .1rem;
+}
+
+.kd-doc-about strong {
+	font-size: 1.0625rem;
+	overflow-wrap: anywhere;
+}
+
+.kd-doc-about small {
+	font-size: .8125rem;
+	color: var(--kd-muted);
+	overflow-wrap: anywhere;
+}
+
+.kd-doc-meta {
+	font-weight: 700;
+}
+
+.kd-doc-get {
+	flex: none;
+	padding: .6rem 1.2rem;
+	font-size: .9375rem;
+}
+
+.kd-doc-remove {
+	margin: 0;
+}
+
+/* A destructive action should not look like the thing you are meant to press,
+   so Remove is a quiet link rather than a second button beside Download. */
+.kd-linkish {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	padding: 0 .5rem;
+	border: 0;
+	background: none;
+	color: var(--kd-muted);
+	font: inherit;
+	font-size: .875rem;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.kd-linkish:hover,
+.kd-linkish:focus-visible {
+	color: #8A1C1C;
+}
+
+/* Removal is permanent and there is no trash, so it asks first. The question
+   replaces the row's controls rather than appearing beside them, so there is
+   nothing left to mis-tap. */
+.kd-doc-confirm {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: .5rem;
+	flex-basis: 100%;
+	padding: 1rem;
+	border: 2px solid rgba(138, 28, 28, .3);
+	border-radius: var(--kd-radius-sm);
+	background: #FDECEC;
+}
+
+.kd-doc-confirm strong {
+	color: #8A1C1C;
+}
+
+.kd-doc-confirm span {
+	font-size: .875rem;
+	color: var(--kd-muted);
+}
+
+.kd-doc-confirm form {
+	margin: 0;
+}
+
+.kd-btn-danger {
+	background: #8A1C1C;
+	color: #fff;
+	box-shadow: 0 10px 20px -8px rgba(138, 28, 28, .5);
+}
+
+.kd-upload {
+	margin-top: 20px;
+	padding: 1.5rem;
+	background: var(--kd-card);
+	border: 2px dashed var(--kd-line);
+	border-radius: var(--kd-radius-md);
+}
+
+.kd-upload h3 {
+	margin: 0 0 1rem;
+	font-family: "Outfit", "Figtree", sans-serif;
+	font-size: 1.125rem;
+	color: var(--kd-deep);
+}
+
+.kd-field {
+	display: block;
+	margin: 0 0 1.1rem;
+	border: 0;
+	padding: 0;
+}
+
+/* :not(.kd-choice) matters. The audience rows are labels too, and without it
+   they inherit the uppercase eyebrow styling: the radio ends up alone on one
+   line with block capitals stacked under it, including the safeguarding
+   warning. */
+.kd-field > label:not(.kd-choice),
+.kd-field > legend {
+	display: block;
+	margin-bottom: .35rem;
+	font-size: .8125rem;
+	font-weight: 900;
+	text-transform: uppercase;
+	letter-spacing: .08em;
+	color: var(--kd-deep);
+}
+
+.kd-field input[type="text"],
+.kd-field input[type="file"] {
+	width: 100%;
+	min-height: 48px;
+	padding: .7rem .9rem;
+	border: 2px solid var(--kd-line);
+	border-radius: var(--kd-radius-sm);
+	background: #fff;
+	font: inherit;
+	color: var(--kd-ink);
+}
+
+.kd-field input[type="text"]:focus,
+.kd-field input[type="file"]:focus {
+	outline: none;
+	border-color: var(--kd-sage-deep);
+}
+
+.kd-field > small {
+	display: block;
+	margin-top: .35rem;
+	font-size: .8125rem;
+	color: var(--kd-muted);
+}
+
+.kd-choice {
+	display: flex;
+	align-items: flex-start;
+	gap: .7rem;
+	/* Comfortably past 44px including the padding, so the whole row is the
+	   target rather than the radio button itself. */
+	padding: .7rem .9rem;
+	margin-bottom: .5rem;
+	border: 2px solid var(--kd-line);
+	border-radius: var(--kd-radius-sm);
+	cursor: pointer;
+}
+
+.kd-choice:has(input:checked) {
+	border-color: var(--kd-sage-deep);
+	background: var(--kd-cream);
+}
+
+.kd-choice input {
+	margin-top: .25rem;
+	width: 20px;
+	height: 20px;
+	flex: none;
+	accent-color: var(--kd-sage-deep);
+}
+
+.kd-choice span {
+	display: flex;
+	flex-direction: column;
+}
+
+.kd-choice small {
+	font-size: .8125rem;
+	color: var(--kd-muted);
+}
+
+
+/* --------------------------------------------------------------------------
+   The roster. One <details> per group, so ninety rows are not in the way of
+   everything below them.
+   -------------------------------------------------------------------------- */
+
+.kd-roster {
+	--kd-p: #4E6B44;
+	--kd-p-rgb: 78, 107, 68;
+
+	margin-bottom: 12px;
+	background: var(--kd-card);
+	border: 2px solid rgba(var(--kd-p-rgb), .18);
+	border-radius: var(--kd-radius-md);
+	overflow: hidden;
+}
+
+.kd-roster > summary {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+	/* Well past 44px, because the summary is the only control on the row. */
+	min-height: 56px;
+	padding: 1rem 1.25rem;
+	cursor: pointer;
+	list-style: none;
+}
+
+/* The default marker is a tiny triangle in Chrome and nothing at all in some
+   others, so it is replaced with one that is the same everywhere. */
+.kd-roster > summary::-webkit-details-marker {
+	display: none;
+}
+
+.kd-roster > summary::after {
+	content: "\203A";
+	margin-left: auto;
+	font-size: 1.5rem;
+	line-height: 1;
+	color: var(--kd-p);
+	transform: rotate(90deg);
+	transition: transform .15s ease;
+}
+
+.kd-roster[open] > summary::after {
+	transform: rotate(-90deg);
+}
+
+.kd-roster-name {
+	font-family: "Outfit", "Figtree", sans-serif;
+	font-weight: 700;
+	font-size: 1.0625rem;
+	color: var(--kd-deep);
+}
+
+.kd-roster-count {
+	font-size: .8125rem;
+	font-weight: 700;
+	color: var(--kd-muted);
+}
+
+.kd-people {
+	margin: 0;
+	padding: 0 1.25rem 1rem;
+	list-style: none;
+}
+
+.kd-person {
+	display: flex;
+	align-items: center;
+	gap: .85rem;
+	flex-wrap: wrap;
+	padding: .7rem 0;
+	border-top: 1px solid var(--kd-line);
+}
+
+.kd-person-name {
+	flex: 1;
+	min-width: 130px;
+	font-weight: 700;
+	overflow-wrap: anywhere;
+}
+
+.kd-person-bar {
+	flex: none;
+	width: 110px;
+	height: 10px;
+	border-radius: 9999px;
+	background: var(--kd-cream-2);
+	overflow: hidden;
+}
+
+.kd-person-bar > span {
+	display: block;
+	height: 100%;
+	border-radius: 9999px;
+	background: var(--kd-p);
+}
+
+.kd-person-pc {
+	flex: none;
+	min-width: 3ch;
+	font-variant-numeric: tabular-nums;
+	font-weight: 900;
+	font-size: .875rem;
+	text-align: right;
+	color: var(--kd-deep);
+}
+
+.kd-pill-state {
+	background: var(--kd-cream-2);
+	color: var(--kd-sage-deep);
+}
+
+/* Status is never carried by the bar's colour alone: every row also states it
+   in words, so the roster survives a greyscale screen. */
+.kd-person.is-not_started .kd-person-bar > span {
+	background: var(--kd-line);
+}
+
+.kd-person.is-completed .kd-pill-state {
+	background: #DFF0E4;
+	color: #1F5C38;
+}
+
+
+/* --------------------------------------------------------------------------
+   Application status.
+
+   The tone classes carry a colour each, but never only a colour: every state
+   also has its own words and its own mark, so the difference survives a
+   greyscale screen and a colour-blind reader.
+   -------------------------------------------------------------------------- */
+
+.kd-appl {
+	--kd-tone: var(--kd-sage-deep);
+
+	display: flex;
+	align-items: flex-start;
+	gap: 1.1rem;
+	padding: 1.5rem;
+	background: var(--kd-card);
+	border: 2px solid var(--kd-line);
+	border-left: 6px solid var(--kd-tone);
+	border-radius: var(--kd-radius-md);
+}
+
+.kd-appl-open    { --kd-tone: #4E6B44; }
+/* #8A6D1F was 4.32:1 on the pill ground, under AA, and it carries three of
+   the seven states. #7A5F1A is 5.33:1 and keeps the same hue. */
+.kd-appl-waiting { --kd-tone: #7A5F1A; }
+.kd-appl-action  { --kd-tone: #1D6FA5; }
+.kd-appl-good    { --kd-tone: #1F7A4C; }
+.kd-appl-closed  { --kd-tone: #7A4A1F; }
+
+.kd-appl-mark {
+	flex: none;
+	display: grid;
+	place-items: center;
+	width: 56px;
+	height: 56px;
+	font-size: 1.6rem;
+	line-height: 1;
+	border-radius: 9999px;
+	background: var(--kd-cream-2);
+}
+
+.kd-appl-say {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: .45rem;
+}
+
+.kd-appl-pill {
+	background: var(--kd-cream-2);
+	color: var(--kd-tone);
+}
+
+.kd-appl h3 {
+	margin: 0;
+	font-family: "Fredoka", "Figtree", sans-serif;
+	font-size: 1.25rem;
+	color: var(--kd-deep);
+}
+
+.kd-appl p {
+	margin: 0;
+	max-width: 52ch;
+	color: var(--kd-muted);
+}
+
+.kd-appl-note {
+	padding: .5rem .8rem;
+	border-radius: var(--kd-radius-sm);
+	background: var(--kd-cream);
+	color: var(--kd-ink) !important;
+}
+
+.kd-appl-when {
+	font-size: .8125rem;
+	font-weight: 700;
+}
+
+.kd-appl .kd-btn {
+	margin-top: .5rem;
+}
+
+
+/* --------------------------------------------------------------------------
+   Small screens. Many learners reach the Academy only on a phone.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+	.kd-hero {
+		padding: 1.6rem 1.25rem;
+		border-radius: 2rem;
+	}
+
+	/* The decoration is charming on a laptop and clutter on a 360px screen. */
+	.kd-glyph {
+		display: none;
+	}
+
+	.kd-next {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.kd-next .kd-btn {
+		width: 100%;
+	}
+
+	/* One card per row. Two half width cards on a 360px screen make the ring
+	   and the title fight for the same space and both lose. */
+	.kd-cards {
+		grid-template-columns: 1fr;
+	}
+
+	.kd-stat {
+		min-width: 100%;
+	}
+
+	.kd-head {
+		margin: 36px 0 14px;
+	}
+
+	.kd-adminbar {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.kd-adminbar-btn {
+		width: 100%;
+	}
+
+	/* Two badges across a phone. Measured at 375px this gives 154px tiles with
+	   62px marks: big enough for a child to read and press, and far past the
+	   44px minimum. Three across would shrink the mark below that. */
+	.kd-badges {
+		grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+		gap: 12px;
+	}
+
+	.kd-badge {
+		padding: 1rem .5rem;
+	}
+
+	.kd-badge-mark {
+		width: 62px;
+		height: 62px;
+		font-size: 1.7rem;
+	}
+
+	.kd-badge-note {
+		display: none;
+	}
+
+	.kd-cert .kd-btn {
+		width: 100%;
+		text-align: center;
+	}
+
+	/* The download button drops to its own full width row rather than being
+	   squeezed beside the name. */
+	.kd-doc {
+		gap: .75rem;
+	}
+
+	.kd-doc-about {
+		min-width: 0;
+		flex-basis: calc(100% - 68px);
+	}
+
+	.kd-doc-get {
+		width: 100%;
+	}
+
+	.kd-doc-remove {
+		width: 100%;
+		text-align: center;
+	}
+
+	/* The name takes the row and the numbers sit under it, rather than three
+	   things fighting over 320px. */
+	.kd-person-name {
+		flex-basis: 100%;
+		min-width: 0;
+	}
+
+	.kd-person-bar {
+		flex: 1;
+		width: auto;
+	}
+
+	.kd-people {
+		padding: 0 1rem 1rem;
+	}
+
+	/* The mark moves above the words rather than stealing 56px of a 320px row. */
+	.kd-appl {
+		flex-direction: column;
+		padding: 1.25rem;
+	}
+
+	.kd-appl .kd-btn {
+		width: 100%;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.kd * {
+		transition: none !important;
+	}
+}

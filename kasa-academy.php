@@ -2,8 +2,8 @@
 /*
 * Plugin Name:       Kasa Academy
 * Plugin URI:        https://github.com/shakib6472/kasa-academy
-* Description:       Roles, capabilities and group scoping for the Kasa Learning Academy. Built as a foundation so the learner dashboard, learning pathway and application system can be added later as separate modules.
-* Version:           1.0.0
+* Description:       Roles, capabilities and group scoping for the Kasa Learning Academy, and the learner, facilitator and partner dashboard that sits on top of them. The learning pathway and the application system can be added later as further modules.
+* Version:           1.1.0
 * Requires at least: 6.9
 * Requires PHP:      7.2
 * Author:            Shakib Shown
@@ -18,9 +18,14 @@ exit; // Exit if accessed directly.
 }
 
 /**
- * The plugin version. Bump on release.
+ * The plugin version.
+ *
+ * Bump this on every change that leaves this machine, so a site can be asked
+ * which version it is running and the answer means something. It is separate
+ * from KASA_ROLES_VERSION below: that one only moves when the capability map
+ * changes, because it is what triggers a rewrite of the roles in the database.
  */
-define( 'KASA_ACADEMY_VERSION', '1.0.0' );
+define( 'KASA_ACADEMY_VERSION', '1.1.0' );
 
 /**
  * The roles and capabilities version.
@@ -34,7 +39,7 @@ define( 'KASA_ACADEMY_VERSION', '1.0.0' );
  * Increment this whenever the capability map in includes/roles/capabilities.php
  * changes, otherwise the change will never reach an existing install.
  */
-define( 'KASA_ROLES_VERSION', '1.1.0' );
+define( 'KASA_ROLES_VERSION', '1.2.0' );
 
 define( 'KASA_ACADEMY_FILE', __FILE__ );
 define( 'KASA_ACADEMY_PATH', plugin_dir_path( __FILE__ ) );
@@ -76,6 +81,13 @@ function kasa_academy_activate() {
 	// would be harmless, but it would also be needless work on every admin
 	// page load until an admin_init finally recorded it.
 	Kasa_Role_Migration::maybe_run();
+
+	// The dashboard page. Idempotent: an existing page at that slug is adopted
+	// rather than duplicated.
+	require_once KASA_ACADEMY_PATH . 'includes/class-kasa-module.php';
+	require_once KASA_ACADEMY_PATH . 'modules/dashboard/class-kasa-dashboard-module.php';
+
+	Kasa_Dashboard_Module::install_page();
 }
 register_activation_hook( __FILE__, 'kasa_academy_activate' );
 

@@ -127,6 +127,12 @@ function kasa_academy_capability_definitions() {
 		/* Content and site                                                  */
 		/* ---------------------------------------------------------------- */
 
+		'kasa_manage_resources'           => array(
+			'label'       => 'Upload and remove shared documents',
+			'group'       => 'Content and site',
+			'description' => 'Put a handbook, manual or rulebook on the dashboard for others to download, and take one down again. Facilitators do this from the dashboard itself rather than wp-admin, so this is the only thing standing between a signed-in learner and a file upload: it is granted to facilitators and administrators and to nobody else. Viewing a document is a separate question, answered per document by kasa_view_facilitator_resources.',
+			'integration' => false,
+		),
 		'kasa_manage_academy'             => array(
 			'label'       => 'Administer the Academy',
 			'group'       => 'Content and site',
@@ -220,6 +226,7 @@ function kasa_academy_role_definitions() {
 				'kasa_manage_group_members',
 				'kasa_review_applications',
 				'kasa_view_facilitator_resources',
+				'kasa_manage_resources',
 				'group_leader',
 				'propanel_widgets',
 				'wpProQuiz_show',
@@ -309,6 +316,7 @@ function kasa_academy_role_definitions() {
 				'kasa_view_org_cohorts',
 				'kasa_select_for_competition',
 				'kasa_manage_seasons',
+				'kasa_manage_resources',
 				'kasa_manage_academy',
 				// No group_leader capability. LearnDash recognises an
 				// administrator through LEARNDASH_ADMIN_CAPABILITY_CHECK, which

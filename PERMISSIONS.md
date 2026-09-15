@@ -8,7 +8,7 @@ installer reads, so it cannot drift away from what the plugin actually
 does. Editing it by hand achieves nothing; change the map and
 regenerate from **Kasa Academy → Permissions matrix**.
 
-Plugin version 1.0.0 · roles version 1.1.0 · generated 18 August 2026
+Plugin version 1.0.0 · roles version 1.2.0 · generated 1 September 2026
 
 ## The four roles
 
@@ -65,8 +65,10 @@ Plugin version 1.0.0 · roles version 1.1.0 · generated 18 August 2026
 
 | Capability | Learner | Facilitator | Implementation Partner | Administrator |
 | --- | :-: | :-: | :-: | :-: |
+| Upload and remove shared documents<br>`kasa_manage_resources` | — | Yes | — | Yes |
 | Administer the Academy<br>`kasa_manage_academy` | — | — | — | Yes |
 
+- **Upload and remove shared documents** — Put a handbook, manual or rulebook on the dashboard for others to download, and take one down again. Facilitators do this from the dashboard itself rather than wp-admin, so this is the only thing standing between a signed-in learner and a file upload: it is granted to facilitators and administrators and to nobody else. Viewing a document is a separate question, answered per document by kasa_view_facilitator_resources.
 - **Administer the Academy** — Administrator catch all, used to gate plugin settings screens.
 
 ## LearnDash integration

@@ -83,6 +83,12 @@ final class Kasa_Academy {
 		require_once KASA_ACADEMY_PATH . 'includes/admin/class-kasa-permissions-matrix.php';
 		require_once KASA_ACADEMY_PATH . 'includes/admin/class-kasa-admin-menu.php';
 		require_once KASA_ACADEMY_PATH . 'includes/export/class-kasa-export.php';
+
+		// Modules. Each one registers itself on kasa_academy_register_modules
+		// and is booted after plugins_loaded, so LearnDash is present by then.
+		require_once KASA_ACADEMY_PATH . 'modules/dashboard/class-kasa-dashboard-module.php';
+		require_once KASA_ACADEMY_PATH . 'modules/resources/class-kasa-resources-module.php';
+		require_once KASA_ACADEMY_PATH . 'modules/applications/class-kasa-application-status.php';
 	}
 
 	/**
